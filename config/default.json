@@ -1,0 +1,19 @@
+{
+    "https_port": 20400,
+    "security": {
+        "server": {
+            "cert": "content/security/cert.pem",
+            "key": "content/security/key.pem"
+        }
+    },
+    "mongo": {
+        "url": "mongodb://37.139.15.10:27017/checkmeal",
+        "user": "server",
+        "pass": "3cnd30ty_p937tyc30m@c3459ty3t7xgm0743ctg74m3y"
+    },
+    "upload_dir": "../checkmeat_files/upload",
+    "file_limits": {
+        "fileSize": 10485760,
+        "parts": 100
+    }
+}
