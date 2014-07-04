@@ -38,9 +38,9 @@ app.use('/', express.static(__dirname + '/static_files'));
 app.use(methodOverride());
 app.use(bodyParser.json());
 app.use(compression());
-app.use('/api.v1', api.router);
+app.use('/api', api.router);
 app.get('/', function (req, res) {
-    res.send('<form method="post" action="/api.v1/file" enctype="multipart/form-data"><input type="file" name="files" multiple/>' +
+    res.send('<form method="post" action="/api/recognize" enctype="multipart/form-data"><input type="file" name="files" multiple/>' +
         '<br>' +
         '<input type="submit" value="Upload" /></form>');
 });

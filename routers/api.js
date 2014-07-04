@@ -35,54 +35,70 @@ api.use(multer({
     }
 }));
 
-api.post('/file', function (req, res) {
+api.post('/recognize', function (req, res) {
+    console.log(req.headers);
+
     var files = null,
         files_to_db = [];
     if (!req.files)
-        return res.json(200, {err: {msg: "No files provided!"}});
+        return res.json(400, {err: {code: 1001, msg: "No files provided!"}});
     if (_.isArray(req.files.files))
         files = req.files.files;
     else
         files = [req.files.files];
+
     log.debug(files);
-    files.forEach(
-        function (file) {
-            if (!file.mimetype || file.mimetype.split('/')[0] != "image") {
-                if (file.path) {
-                    var p = path.resolve(nconf.get("NODE_DIR") + "/" + file.path);
-                    fs.unlink(p, function (err, data) {
-                        if (err) {
-                            log.error(err.stack);
-                            log_files_error(files, file);
-                        } else
-                            log.info(file.path + " - deleted for wrong mimetype!");
-                    })
-                } else {
-                    log.error("No filepath! Can't delete.");
-                    log_files_error(files, file);
-                }
-            } else {
-                files_to_db.push({
-                    originalname: file.originalname,
-                    name: file.name,
-                    encoding: file.encoding,
-                    mimetype: file.mimetype,
-                    extension: file.extension,
-                    size: file.size,
-                    truncated: file.truncated,
-                    creator: null,
-                    createdAt: new Date()
-                });
-            }
+
+    var errors = [];
+    files.forEach(function (file) {
+        if (!file.mimetype || file.mimetype.split('/')[0] != "image") {
+            errors.push({file: file.originalname, msg: "Not an image"});
+            delete_file(file);
+        } else if (file.truncated) {
+            errors.push({file: file.originalname, msg: "Too big or error while saving."});
+            delete_file(file);
+        } else {
+            files_to_db.push({
+                originalname: file.originalname,
+                name: file.name,
+                encoding: file.encoding,
+                mimetype: file.mimetype,
+                extension: file.extension,
+                size: file.size,
+                truncated: file.truncated,
+                creator: null,
+                createdAt: new Date()
+            });
         }
-    );
+    });
+
+    if (errors.length)
+        return res.json(400, {err: {code: 1002, msg: "Error while saving files", data: errors}});
+
     File.create(files_to_db, function (err) {
         if (err)
-            return res.json(200, {err: {msg: err.stack}});
-        res.json(200, {status: "Ok!", uploaded: files_to_db});
+            return res.json(400, {err: {code: 0, msg: err.stack}});
+        res.json(200, {status: "Ok!", ticket: _.rest(arguments, 1).map(function (item) {
+            return item._id;
+        })});
     });
 });
 
+function delete_file(file) {
+    if (file.path) {
+        var p = path.resolve(nconf.get("NODE_DIR") + "/" + file.path);
+        fs.unlink(p, function (err, data) {
+            if (err) {
+                log.error(err.stack);
+                log_files_error(files, file);
+            } else
+                log.info(file.path + " - deleted for wrong mimetype!");
+        })
+    } else {
+        log.error("No filepath! Can't delete.");
+        log_files_error(files, file);
+    }
+}
 
 function log_files_error(files, file) {
     log.error("All files:");
