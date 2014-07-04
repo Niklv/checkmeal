@@ -53,10 +53,10 @@ api.post('/recognize', function (req, res) {
     files.forEach(function (file) {
         if (!file.mimetype || file.mimetype.split('/')[0] != "image") {
             errors.push({file: file.originalname, msg: "Not an image"});
-            delete_file(file);
+            delete_file(file, "wrong mimetype");
         } else if (file.truncated) {
             errors.push({file: file.originalname, msg: "Too big or error while saving."});
-            delete_file(file);
+            delete_file(file, "truncated");
         } else {
             files_to_db.push({
                 originalname: file.originalname,
@@ -84,15 +84,15 @@ api.post('/recognize', function (req, res) {
     });
 });
 
-function delete_file(file) {
-    if (file.path) {
+function delete_file(file, cause) {
+    if (file && file.path) {
         var p = path.resolve(nconf.get("NODE_DIR") + "/" + file.path);
         fs.unlink(p, function (err, data) {
             if (err) {
                 log.error(err.stack);
                 log_files_error(files, file);
             } else
-                log.info(file.path + " - deleted for wrong mimetype!");
+                log.info(file.path + " - deleted for " + cause + "!");
         })
     } else {
         log.error("No filepath! Can't delete.");
