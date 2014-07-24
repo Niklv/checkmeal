@@ -40,7 +40,7 @@ app.use(bodyParser.json());
 app.use(compression());
 app.use('/api', api.router);
 app.get('/', function (req, res) {
-    res.send('<form method="post" action="/api/recognize" enctype="multipart/form-data"><input type="file" name="files" multiple/>' +
+    res.send(' <form method="post" action="/api/recognize" enctype="multipart/form-data"><input type="file" name="files" multiple/>' +
         '<br>' +
         '<input type="submit" value="Upload" /></form>');
 });
