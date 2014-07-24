@@ -13,7 +13,8 @@
     },
     "redis": {
         "host": "localhost",
-        "port": 6379
+        "port": 6379,
+        "db": 1
     },
     "upload_dir": "../checkmeat_files/upload",
     "file_limits": {

@@ -1,6 +1,7 @@
 var kue = require('kue');
 var nconf = require('nconf');
 var q = kue.createQueue({
-    prefix: 'q',
-    redis: nconf.get("redis")
+    db: nconf.get("redis:db")
 });
+
+module.exports = q;
