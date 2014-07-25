@@ -1,7 +1,11 @@
 var kue = require('kue');
 var nconf = require('nconf');
-var q = kue.createQueue({
+var app = kue.app;
+
+var jobs = kue.createQueue({
     db: nconf.get("redis:db")
 });
 
-module.exports = q;
+
+module.exports.jobs = jobs;
+module.exports.app = app;

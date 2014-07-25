@@ -1,0 +1,18 @@
+{
+    "0": {
+        "msg": "Unknown Error",
+        "http": 500
+    },
+    "1001": {
+        "msg": "Unknown Error",
+        "http": 400
+    },
+    "1002": {
+        "msg": "Error while saving files",
+        "http": 400
+    },
+    "1003": {
+        "msg": "No proper files provided",
+        "http": 400
+    }
+}

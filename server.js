@@ -27,23 +27,27 @@ db.connect();
 
 //app.disable('etag');
 app.disable('x-powered-by');
-if (nconf.get('NODE_ENV') != 'production')
-    app.use(morgan({
-        format: 'dev',
-        stream: { write: function (message, encoding) {
-            log.debug(message.replace(/(\r\n|\n|\r)/gm, ""));
-        }}
-    }));
 app.use('/', express.static(__dirname + '/static_files'));
 app.use(methodOverride());
 app.use(bodyParser.json());
 app.use(compression());
+var kue = require('./controllers/queue');
+app.use('/kue/', kue.app);
+kue.app.route = kue.app.mountpath;
+if (nconf.get('NODE_ENV') != 'production')
+    app.use(morgan('dev', {
+        stream: { write: function (message, encoding) {
+            log.debug(message.replace(/(\r\n|\n|\r)/gm, ""));
+        }}
+    }));
 app.use('/api', api.router);
 app.get('/', function (req, res) {
-    res.send(' <form method="post" action="/api/recognize" enctype="multipart/form-data"><input type="file" name="files" multiple/>' +
+    res.send('<form method="post" action="/api/recognize" enctype="multipart/form-data"><input type="file" name="files" multiple/>' +
         '<br>' +
         '<input type="submit" value="Upload" /></form>');
 });
+app.use(require('./controllers/error').PageNotFound);
+app.use(require('./controllers/error').ErrorHandler);
 log.info("Server config complete!");
 
 var httpsServer = https.createServer({
