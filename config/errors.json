@@ -4,7 +4,7 @@
         "http": 500
     },
     "1001": {
-        "msg": "Unknown Error",
+        "msg": "No files provided",
         "http": 400
     },
     "1002": {

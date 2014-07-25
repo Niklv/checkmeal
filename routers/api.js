@@ -20,10 +20,7 @@ var api = express.Router();
  });
  });*/
 
-api.post('/recognize', file.upload, file.check, function (req, res, next) {
-    console.log();
-    res.send(200);
-});
+api.post('/recognize', file.upload, file.process);
 
 
 module.exports.router = api;

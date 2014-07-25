@@ -12,7 +12,7 @@ var log = require("./log")(module);
  * @this {ServerError}
  * @param message Message.
  * @param error_code Error code.
- * @param additional_data Additional data.
+ * @param additional_data Additional data, must be object.
  * @param http_code Http code for server response.
  */
 function ServerError(error_code, message, additional_data, http_code) {
@@ -31,22 +31,32 @@ function ServerError(error_code, message, additional_data, http_code) {
         this.message = errors[0].msg;
     }
 
-    /*this.http_code = typeof http_code !== 'undefined' ? http_code : 500;
-     this.error_code = "" + typeof error_code !== 'undefined' ? error_code : 0;
-     this.message = typeof message !== 'undefined' ? message : "Unknown error";
-     Error.captureStackTrace(this, ServerError);*/
+    if (!message || typeof message !== 'string') {
+        http_code = additional_data;
+        additional_data = message;
+    } else
+        this.message = message;
 
+
+    if (!additional_data || !_.isObject(additional_data)) {
+        http_code = additional_data;
+    } else
+        this.data = additional_data;
+
+    if (http_code && _.isNumber(http_code))
+        this.http_code = http_code;
+    Error.captureStackTrace(this, ServerError);
 }
-
 util.inherits(ServerError, Error);
 ServerError.prototype.name = "ServerError";
-ServerError.prototype.getJsonMessage = function () {
-    return {
-        err: {
-            num: this.error_code,
-            msg: this.message
-        }
-    };
+ServerError.prototype.toJSON = function () {
+    var result = {err: {
+        num: this.error_code,
+        msg: this.message
+    }};
+    if (this.data && _.isObject(this.data))
+        result.err = _.extend(result.err, this.data);
+    return result;
 };
 
 
@@ -57,9 +67,9 @@ function PageNotFound(req, res, next) {
 function ErrorHandler(err, req, res, next) {
     if (err) {
         if (typeof err === 'number')
-            return res.json(err, {err: {num: "" + err, msg: "HTTP" + err + " error"}});
-        else if (err.name == "serverError")
-            return res.json(err.http_code, err.getJsonMessage());
+            err = new ServerError(err);
+        if (err.name == "ServerError")
+            return res.json(err.http_code, err.toJSON());
         else {
             log.error(err.stack);
             return res.json(500, {err: {num: "500", msg: "Unknown error: " + err.message}})

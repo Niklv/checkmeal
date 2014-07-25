@@ -30,25 +30,21 @@ module.exports.upload = multer({
     }
 });
 
-
-module.exports.check = function (req, res, next) {
-    var incoming_files = null,
-        good_files = [],
-        errors = [];
+module.exports.process = function (req, res, next) {
+    var incoming_files, good_files = [], errors = [];
     if (!req.files)
         return next(1001);
-    if (_.isArray(req.files.files))
-        incoming_files = req.files.files;
-    else
-        incoming_files = [req.files.files];
+
+    incoming_files = _.isArray(req.files.files) ? req.files.files : [req.files.files];
     log.debug(incoming_files);
+
     incoming_files.forEach(function (file) {
         if (!file) {
         } else if (!file.mimetype || file.mimetype.split('/')[0] != "image") {
             errors.push({file: file.originalname, msg: "Not an image"});
             deleteFile(file, "wrong mimetype");
         } else if (file.truncated) {
-            errors.push({file: file.originalname, msg: "Too big or error while saving."});
+            errors.push({file: file.originalname, msg: "File is too big or error while saving."});
             deleteFile(file, "truncated");
         } else {
             good_files.push({
@@ -72,10 +68,10 @@ module.exports.check = function (req, res, next) {
         return next(1003);
 
     /*recognize(good_files, function (err, data) {
-        if (err)
-            return next(err);
-        res.json(200, {status: "Ok!", ticket: data});
-    });*/
+     if (err)
+     return next(err);
+     res.json(200, {status: "Ok!", ticket: data});
+     });*/
     next();
 };
 
