@@ -1,4 +1,4 @@
-var _ = require('underscore');
+var _ = require('lodash');
 var kue = require('kue');
 var Job = kue.Job;
 var JobInfo = require('./../models').JobInfo;
@@ -70,30 +70,32 @@ jobs.on('job complete', function (id, result) {
 function startRecognizeJob(file, cb) {
     if (!file || !_.isObject(file))
         return cb(new Error("No file provided"), null);
-    var jobInfo = new JobInfo({
-        originalname: file.originalname,
-        name: file.name,
-        encoding: file.encoding,
-        mimetype: file.mimetype,
-        extension: file.extension,
-        size: file.size,
-        truncated: file.truncated,
-        creator: file.creator,
-        createdAt: file.createdAt,
-        state: "queued"
+    /*var newJobInfo = new JobInfo({
+     originalname: file.originalname,
+     name: file.name,
+     encoding: file.encoding,
+     mimetype: file.mimetype,
+     extension: file.extension,
+     size: file.size,
+     truncated: file.truncated,
+     creator: file.creator,
+     createdAt: file.createdAt,
+     state: "queued"
+     });
+     newJobInfo.save(function (err, jobInfo) {
+     if (err)
+     return cb(err);*/
+    log.info(file);
+    var job = jobs.create('recognize', {title: "Recognize " + file._id + " " + file.originalname,
+        filename: file.name,
+        mongo_id: file._id
+    }).save(function (err) {
+        if (err)
+            throw err;
+        job.log("Saved To Redis");
+        cb(err, file.mongo_id);
     });
-    jobInfo.save(function (err, jobInfo) {
-        //TODO: handle ERROR!
-        log.info("Mongo alias");
-        var job = jobs.create('recognize', {title: "Recognize " + jobInfo._id + " " + file.originalname,
-            filename: file.name,
-            mongo_id: jobInfo._id
-        }).save(function (err) {
-            //TODO: handle ERROR!
-            job.log("Saved To Redis");
-            cb(err, job.data.mongo_id);
-        });
-    });
+    //});
 }
 
 function shutdown(cb) {

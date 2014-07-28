@@ -1,4 +1,4 @@
-var _ = require("underscore");
+var _ = require("lodash");
 var util = require("util");
 var http = require("http");
 var errors = require("../config/errors.json");
@@ -69,10 +69,10 @@ function ErrorHandler(err, req, res, next) {
         if (typeof err === 'number')
             err = new ServerError(err);
         if (err.name == "ServerError")
-            return res.json(err.http_code, err.toJSON());
+            return res.status(err.http_code).json(err.toJSON());
         else {
             log.error(err.stack);
-            return res.json(500, {err: {num: "500", msg: "Unknown error: " + err.message}})
+            return res.status(500).json({err: {num: "500", msg: "Unknown error: " + err.message}})
         }
     } else
         next();

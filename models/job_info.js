@@ -2,7 +2,6 @@ var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 
 
-
 //TODO: add Error!
 var jobInfo = new Schema({
     originalname: {
@@ -49,8 +48,15 @@ var jobInfo = new Schema({
     state: String,
     startedAt: Date,
     completedAt: Date,
+    error: Object,
     log: Object
 });
+
+
+jobInfo.methods.failed = function () {
+    this.state = "failed";
+};
+
 
 module.exports = mongoose.model('job_info', jobInfo);
 

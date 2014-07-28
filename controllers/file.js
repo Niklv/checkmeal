@@ -1,12 +1,15 @@
-var _ = require('underscore');
+var _ = require('lodash');
 var fs = require('fs');
 var path = require('path');
 var async = require('async');
 var nconf = require('nconf');
 var multer = require('multer');
+var mongoose = require('mongoose');
+var Grid = require('gridfs-stream');
 var ServerError = require('./error').ServerError;
 var log = require('./log')(module);
 var startRecognizeJob = require('./recognize_kue').startRecognizeJob;
+var JobInfo = require('./../models').JobInfo;
 
 module.exports.upload = multer({
     dest: nconf.get("upload_dir"),
@@ -33,7 +36,7 @@ module.exports.upload = multer({
 });
 
 module.exports.process = function (req, res, next) {
-    var incoming_files, good_files = [], errors = [];
+    var incoming_files, good_files = [], errors = [], curDate = new Date();
     if (!req.files)
         return next(1001);
 
@@ -47,17 +50,7 @@ module.exports.process = function (req, res, next) {
         else if (file.truncated)
             errors.push({file: file.originalname, msg: "File is too big or error while saving."});
         else {
-            good_files.push({
-                originalname: file.originalname,
-                name: file.name,
-                encoding: file.encoding,
-                mimetype: file.mimetype,
-                extension: file.extension,
-                size: file.size,
-                truncated: file.truncated,
-                creator: null,
-                createdAt: new Date()
-            });
+            good_files.push(_.chain(file).omit(['fieldname', 'path']).extend({creator: null, createdAt: curDate}).valueOf());
         }
     });
 
@@ -71,22 +64,72 @@ module.exports.process = function (req, res, next) {
         return deleteFilesFromFs(incoming_files);
     }
 
-    async.map(good_files, startRecognizeJob, function (err, data) {
-        if (err)
-            log.error(err.stack);
-        if (_.isArray(data))
-            res.json(200, {status: "Ok!", tickets: data}); //end
-        else
-            next(0);
+    JobInfo.create(good_files, function (err, savedToMongo) {
+        async.map(savedToMongo, startRecognizeJob, function (err, data) {
+            if (err)
+                log.error(err.stack);
+            if (_.isArray(data))
+                res.json({status: "Ok!", tickets: data}); //end
+            else
+                next(0);
+        });
     });
 
 
-    /*startRecognizeJob(good_files, function (err, data) {
-     if (err)
-     return next(err);
-     res.json(200, {status: "Ok!", ticket: data});
-     });*/
 };
+
+function writeFilesToGridFs(files, cb) {
+    async.map(files, writeFileToGridFs, cb);
+}
+
+function writeFileToGridFs(file, cb) {
+    var gfs = Grid(mongoose.connection.db);
+    var writestream = gfs.createWriteStream({
+        content_type: file.mimetype,
+        mode: "w",
+        filename: file.name,
+        metadata: {
+            originalname: file.originalname,
+            encoding: file.encoding,
+            extension: file.extension,
+            creator: null
+        }
+    }), fp = path.resolve(nconf.get("NODE_DIR") + "/" + nconf.get("upload_dir") + "/" + file.name);
+
+    fs.createReadStream(fp).pipe(writestream);
+
+    writestream
+        .on('close', function (grid_file) {
+            cb(null, grid_file);
+        })
+        .on('error', function (err) {
+            err.file = file;
+            cb(err, null);
+        });
+}
+
+function deleteFilesFromGridFs(files, cb) {
+    async.filter(files, deleteFileGridFs, function (errors) {
+        cb && cb(errors.length ? errors : null);
+    });
+}
+
+function deleteFileGridFs(file, cb) {
+    log.debug("Delete from gridfs", file._id);
+    var gfs = Grid(mongoose.connection.db);
+    gfs.remove({_id: file._id}, function (err) {
+        if (err) {
+            log.error("Error deleting file!");
+            log.error(err.stack);
+            log.error("Problem file:");
+            log.error(file);
+            cb && cb(null, {file: file, err: err});
+        } else {
+            log.debug("success delete from gridfs", file._id);
+            cb && cb();
+        }
+    });
+}
 
 function deleteFilesFromFs(files, cb) {
     async.filter(files, deleteFileFs, function (errors) {
@@ -96,7 +139,7 @@ function deleteFilesFromFs(files, cb) {
 
 function deleteFileFs(file, cb) {
     log.debug("Delete from fs", file.name);
-    fs.unlink(path.resolve(nconf.get("NODE_DIR") + "/" + file.path), function (err) {
+    fs.unlink(path.resolve(nconf.get("NODE_DIR") + "/" + nconf.get("upload_dir") + "/" + file.name), function (err) {
         if (err) {
             log.error("Error deleting file!");
             log.error(err.stack);

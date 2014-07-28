@@ -6,7 +6,7 @@ nconf.add('defaults', {type: 'file', file: './config/default.json'});
 nconf.set('NODE_DIR', __dirname);
 
 //libs
-var _ = require('underscore');
+var _ = require('lodash');
 var fs = require('fs');
 var async = require('async');
 var express = require('express');
