@@ -8,6 +8,7 @@ nconf.set('NODE_DIR', __dirname);
 //libs
 var _ = require('underscore');
 var fs = require('fs');
+var async = require('async');
 var express = require('express');
 var morgan = require('morgan');
 var https = require('https');
@@ -18,7 +19,7 @@ var models = require('./models');
 var api = require('./routers/api');
 var log = require('./controllers/log')(module);
 var db = require('./controllers/db');
-
+var kue = require('./controllers/recognize_kue');
 
 log.info("Start in " + nconf.get("NODE_ENV"));
 
@@ -31,7 +32,6 @@ app.use('/', express.static(__dirname + '/static_files'));
 app.use(methodOverride());
 app.use(bodyParser.json());
 app.use(compression());
-var kue = require('./controllers/queue');
 app.use('/kue/', kue.app);
 kue.app.route = kue.app.mountpath;
 if (nconf.get('NODE_ENV') != 'production')
@@ -56,3 +56,30 @@ var httpsServer = https.createServer({
 }, app).listen(nconf.get("https_port"), function () {
     log.info("HTTPS Express server listening on port " + nconf.get("https_port"));
 });
+
+process.on('SIGINT', function () {
+    log.info("Caught interrupt signal");
+    shutdown();
+
+});
+
+process.on('message', function (msg) {
+    if (msg == 'shutdown') {
+        log.info("Shutdown signal");
+        shutdown();
+    }
+});
+
+function shutdown() {
+    async.series([
+        kue.shutdown,
+        db.disconnect
+    ], function (err) {
+        log.info("Exit process");
+        process.exit(0);
+    });
+
+
+
+
+}

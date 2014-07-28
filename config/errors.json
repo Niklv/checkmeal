@@ -14,5 +14,9 @@
     "1003": {
         "msg": "No proper files provided",
         "http": 400
+    },
+    "1004": {
+        "msg": "Error saving file to db",
+        "http": 500
     }
 }

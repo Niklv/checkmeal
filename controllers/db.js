@@ -18,3 +18,13 @@ module.exports.connect = function () {
         log.info("Connected to MongoDB");
     });
 };
+
+module.exports.disconnect = function (cb) {
+    log.info("Stop mongo connection");
+    mongoose.connection.close(function (err) {
+        if (err)
+            log.error(err.stack);
+        log.info("Mongo connection is closed.");
+        cb && cb();
+    });
+};
