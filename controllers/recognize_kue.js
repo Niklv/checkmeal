@@ -16,123 +16,126 @@ var jobs = kue.createQueue({
 
 jobs.process('recognize', function (job, done, ctx) {
     //TODO: start processing
-
-
+    //log.info(ctx);
+    /*ctx.shutdown(function (err) {
+     log.info('shutdown signal');
+     }, 5000);*/
+    log.info('START PROCESSING');
     setTimeout(function () {
-        //done(new Error('WOAH'), 'RESULT FUCK YEAH');
-        done(new Error("JOB ERRROR!!!!!"), {result: 'can it be json?'});
-    }, 5000);
+        log.info('END PROCESSING');
+        done(null, {result: 'can it be json?'});
+    }, 3000);
 
 });
 
 jobs.on('job complete', onJobEnd).on('job failed', onJobEnd);
 
 function onJobEnd(jobInCacheId) {
-    async.waterfall([
-            function findJobInCache(done) {
-                kue.Job.get(jobInCacheId, function (err, jobInCache) {
-                    if (err)
-                        done(err);
-                    else if (!jobInCache)
-                        done(new Error('JobInCache with id=' + jobInCacheId + ' not found'));
-                    else
-                        done(null, jobInCache)
-                });
-            },
-            function findJobInDb(jobInCache, done) {
-                if (!jobInCache.data || !jobInCache.data.mongo_id)
-                    return done(new Error('No mongo_id in jobInCache.data jobInCacheId=' + jobInCacheId));
-                JobInfo.findOne({_id: jobInCache.data.mongo_id}, function (err, jobInDb) {
-                    if (err)
-                        done(err);
-                    else if (!jobInDb)
-                        done(new Error('JobInDb with id=' + jobInCache.data.mongo_id + ' not found'));
-                    else
-                        done(null, jobInCache, jobInDb);
-                });
-            },
-            function uploadImageToGridFs(jobInCache, jobInDb, done) {
-                var imageFilePath = path.resolve(nconf.get('NODE_DIR') + '/' + nconf.get('upload_dir') + '/' + jobInDb.name),
-                    mimetype = jobInDb.mimetype,
-                    metadata = {
-                        originalname: jobInDb.originalname,
-                        name: jobInDb.name,
-                        encoding: jobInDb.encoding,
-                        extension: jobInDb.extension
-                    };
-                fs.exists(imageFilePath, function (exists) {
-                    if (!exists)
-                        GridFs.upload(imageFilePath, mimetype, metadata, function (err, fileGridFsId) {
-                            //if err don't delete file
-                            if (err)
-                                log.error(err);
-                            else
-                                fs.unlink(imageFilePath, function (err) {
-                                    if (err)
-                                        log.error('[Job' + jobInCacheId + '] Error while removing file(' + imageFilePath + '): ' + err.stack);
-                                    else
-                                        log.debug('[Job' + jobInCacheId + '] image file delete success');
-                                });
-                            done(null, jobInCache, jobInDb, err ? null : fileGridFsId);
-                        });
-                    else {
-                        jobInCache.debug('DEBUG_INFO_START');
-                        jobInCache.debug('jobInDb : ', jobInDb.toString());
-                        jobInCache.debug('jobInCache.id : ' + jobInCache.id);
-                        jobInCache.debug('jobInCacheId : ' + jobInCacheId);
-                        jobInCache.debug('jobInCache : ' + JSON.stringify(jobInCache.data));
-                        jobInCache.debug('imageFilePath : ' + imageFilePath);
-                        jobInCache.debug('imageFilePath : ' + jobInDb.name);
-                        jobInCache.debug('DEBUG_INFO_END');
-                        log.error("IMAGE FILE NOT EXIST! " + imageFilePath);
-                        done(null, jobInCache, jobInDb, null);
-                    }
-                });
-            },
-            function getCacheJobLogs(jobInCache, jobInDb, fileGridFsId, done) {
-                //kue.Jobs.logs();
-                done(null, jobInCache, jobInDb, fileGridFsId);
-            },
-            function saveJobDataFromCacheToDb(jobInCache, jobInDb, fileGridFsId, jobInCacheLog, done) {
-                jobInDb.file = fileGridFsId;
-                jobInDb.status = jobInCache._state;
-                jobInDb.rawJob = {
-                    id: jobInCache.id,
-                    priority: jobInCache._priority,
-                    delay: jobInCache._delay,
-                    attempts: jobInCache._attempts,
-                    max_attempts: jobInCache._max_attempts,
-                    state: jobInCache._state,
-                    created_at: jobInCache.created_at,
-                    updated_at: jobInCache.updated_at,
-                    failed_at: jobInCache.failed_at,
-                    duration: jobInCache.duration,
-                    error: jobInCache._error,
-                    result: jobInCache.result,
-                    log: jobInCacheLog
+    log.warn("JOB_____________________________________END!");
+    async.auto({
+        jobInCache: function findJobInCache(done) {
+            kue.Job.get(jobInCacheId, function (err, jobInCache) {
+                if (err)
+                    done(err);
+                else if (!jobInCache)
+                    done(new Error('JobInCache with id=' + jobInCacheId + ' not found'));
+                else
+                    done(null, jobInCache)
+            });
+        },
+        jobInDb: ['jobInCache', function findJobInDb(done, ctx) {
+            if (!ctx.jobInCache.data || !ctx.jobInCache.data.mongo_id)
+                return done(new Error('No mongo_id in jobInCache.data jobInCacheId=' + jobInCacheId));
+            JobInfo.findOne({_id: ctx.jobInCache.data.mongo_id}, function (err, jobInDb) {
+                if (err)
+                    done(err);
+                else if (!jobInDb)
+                    done(new Error('JobInDb with id=' + ctx.jobInCache.data.mongo_id + ' not found'));
+                else
+                    done(null, jobInDb);
+            });
+        }],
+        fileGridFsId: ['jobInCache', 'jobInDb', function uploadImageToGridFs(done, ctx) {
+            var imageFilePath = path.resolve(nconf.get('NODE_DIR') + '/' + nconf.get('upload_dir') + '/' + ctx.jobInDb.name),
+                mimetype = ctx.jobInDb.mimetype,
+                metadata = {
+                    originalname: ctx.jobInDb.originalname,
+                    name: ctx.jobInDb.name,
+                    encoding: ctx.jobInDb.encoding,
+                    extension: ctx.jobInDb.extension
                 };
-                jobInDb.save(function (err, jobInfo) {
-                    done(err, jobInfo);
-                    // if err don't delete job in cache
-                    if (!err)
-                        jobInCache.remove(function (err) {
-                            if (err)
-                                log.error('[Job' + jobInCacheId + '] Error while removing job: ' + err.stack);
-                            else
-                                log.debug('[Job' + jobInCacheId + '] job removed');
-                        });
-                });
-            },
-            function notificateUser(jobInfo, done) {
-                //TODO: send notification to user
-                done();
-            }
-        ],
-        function (err, data) {
-            if (err)
-                log.error(err.stack);
-        }
-    );
+            fs.exists(imageFilePath, function (exists) {
+                if (exists)
+                    GridFs.upload(imageFilePath, mimetype, metadata, function (err, fileGridFsId) {
+                        //if err don't delete file
+                        if (err) {
+                            log.error('[Job' + jobInCacheId + '] Error while upload file to gridFs (' + imageFilePath + '): ' + err.stack);
+                            ctx.jobInCache.log('Error while upload file to gridFs (' + imageFilePath + '): ' + err.stack);
+                        } else
+                            fs.unlink(imageFilePath, function (err) {
+                                if (err) {
+                                    log.error('[Job' + jobInCacheId + '] Error while removing file(' + imageFilePath + '): ' + err.stack);
+                                    ctx.jobInCache.log('Error while removing file(' + imageFilePath + '): ' + err.stack);
+                                } else
+                                    ctx.jobInCache.debug('image file delete success');
+                            });
+                        done(null, err ? null : fileGridFsId);
+                    });
+                else {
+                    ctx.jobInCache.debug('DEBUG_INFO_START');
+                    ctx.jobInCache.debug('jobInDb : ', ctx.jobInDb.toString());
+                    ctx.jobInCache.debug('jobInCache.id : ' + ctx.jobInCache.id);
+                    ctx.jobInCache.debug('jobInCacheId : ' + jobInCacheId);
+                    ctx.jobInCache.debug('jobInCache : ' + JSON.stringify(ctx.jobInCache.data));
+                    ctx.jobInCache.debug('imageFilePath : ' + imageFilePath);
+                    ctx.jobInCache.debug('imageFilePath : ' + ctx.jobInDb.name);
+                    ctx.jobInCache.debug('DEBUG_INFO_END');
+                    log.error('IMAGE FILE NOT EXIST! ' + imageFilePath);
+                    done(null, null);
+                }
+            });
+        }],
+        jobInCacheLogs: ['jobInDb', 'fileGridFsId', function getJobInCacheLogs(done, ctx) {
+            kue.Job.log(jobInCacheId, function (err, logs) {
+                if (err)
+                    log.error(err);
+                done(null, (logs && logs.length) ? logs : null);
+            });
+        }],
+        savedJob: ['jobInCache', 'jobInDb', 'fileGridFsId', 'jobInCacheLogs', function saveJobDataFromCacheToDb(done, ctx) {
+            ctx.jobInDb.file = ctx.fileGridFsId;
+            ctx.jobInDb.status = ctx.jobInCache._state;
+            ctx.jobInDb.rawJob = {
+                id: ctx.jobInCache.id,
+                priority: ctx.jobInCache._priority,
+                delay: ctx.jobInCache._delay,
+                attempts: ctx.jobInCache._attempts,
+                max_attempts: ctx.jobInCache._max_attempts,
+                state: ctx.jobInCache._state,
+                created_at: ctx.jobInCache.created_at,
+                updated_at: ctx.jobInCache.updated_at,
+                failed_at: ctx.jobInCache.failed_at,
+                duration: ctx.jobInCache.duration,
+                error: ctx.jobInCache._error,
+                result: ctx.jobInCache.result,
+                log: ctx.jobInCacheLogs
+            };
+            ctx.jobInDb.save(function (err, jobInfo) {
+                done(err, jobInfo);
+                // if err don't delete job in cache
+                if (!err || !ctx.jobInCacheLogs)
+                    ctx.jobInCache.remove(function (err) {
+                        if (err)
+                            log.error('[Job' + jobInCacheId + '] Error while removing job: ' + err.stack);
+                        else
+                            log.debug('[Job' + jobInCacheId + '] job removed');
+                    });
+            });
+        }]
+    }, function (err, data) {
+        if (err)
+            log.error(err.stack);
+    })
 }
 
 
@@ -148,17 +151,36 @@ function startRecognizeJob(fileInfo, cb) {
     });
 }
 
+function restartFailedAtShutdownJobs() {
+    log.info("Restart failed at shutdown jobs");
+    jobs.failed(function (err, data) {
+        async.map(data, function (id, done) {
+            kue.Job.get(id, done);
+        }, function cb(err, data) {
+            console.log("failed");
+            console.log(err);
+            data.forEach(function (item) {
+                /*if(item._error == "Shutdown")
+                    item.promote();*/
+            });
+        });
+
+    });
+
+}
+
 
 function shutdownKue(cb) {
     log.info('Stop jobs');
     jobs.shutdown(function (err) {
         log.info('Kue is shut down.', err || '');
         cb && cb();
-    }, 2000);
+    }, 1000);
 
 }
 
 module.exports.jobs = jobs;
 module.exports.app = app;
 module.exports.startRecognizeJob = startRecognizeJob;
+module.exports.restartFailedAtShutdownJobs = restartFailedAtShutdownJobs;
 module.exports.shutdown = shutdownKue;

@@ -55,6 +55,11 @@ var httpsServer = https.createServer({
     key: fs.readFileSync(nconf.get('security:server:key'), 'utf8')
 }, app).listen(nconf.get('https_port'), function () {
     log.info('HTTPS Express server listening on port', nconf.get('https_port'));
+//////
+    setTimeout(function after5sec() {
+        kue.restartFailedAtShutdownJobs();
+    }, 5000);
+//////
 });
 
 process.on('SIGINT', function () {

@@ -6,18 +6,19 @@ var util = require('util');
 
 Job.prototype.old_log = Job.prototype.log;
 Job.prototype.log = function () {
-    var args = arguments;
-    args[0] = '[Job' + this.id + '] ' + args[0];
-    log.info.apply(this, args);
-    Job.prototype.old_log.apply(this, args);
+    var oldVal = arguments[0];
+    arguments[0] = '[Job' + this.id + '] ' + arguments[0];
+    log.info.apply(this, arguments);
+    arguments[0] = oldVal;
+    Job.prototype.old_log.apply(this, arguments);
 };
 Job.prototype.debug = function () {
-    var args = arguments;
-    args[0] = '[Job' + this.id + '] ' + args[0];
-    log.debug.apply(this, args);
-    Job.prototype.old_log.apply(this, args);
+    var oldVal = arguments[0];
+    arguments[0] = '[Job' + this.id + '] ' + arguments[0];
+    log.debug.apply(this, arguments);
+    arguments[0] = oldVal;
+    Job.prototype.old_log.apply(this, arguments);
 };
-
 
 
 Job.prototype.old_state = Job.prototype.state;
