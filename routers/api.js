@@ -13,9 +13,9 @@ var api = express.Router();
  kue.Job.get(id, function (err, job) {
  if (err) {
  log.error(err);
- res.json(404, {err: {code: 404, msg: "Not found"}});
+ res.json(404, {err: {code: 404, msg: 'Not found'}});
  } else
- res.json(200, {status: "Ok!", job: job.state});
+ res.json(200, {status: 'Ok!', job: job.state});
  console.log(job.state())
  });
  });*/

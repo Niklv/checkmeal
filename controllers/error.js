@@ -1,8 +1,8 @@
-var _ = require("lodash");
-var util = require("util");
-var http = require("http");
-var errors = require("../config/errors.json");
-var log = require("./log")(module);
+var _ = require('lodash');
+var util = require('util');
+var http = require('http');
+var errors = require('../config/errors.json');
+var log = require('./log')(module);
 
 
 /**
@@ -48,7 +48,7 @@ function ServerError(error_code, message, additional_data, http_code) {
     Error.captureStackTrace(this, ServerError);
 }
 util.inherits(ServerError, Error);
-ServerError.prototype.name = "ServerError";
+ServerError.prototype.name = 'ServerError';
 ServerError.prototype.toJSON = function () {
     var result = {err: {
         num: this.error_code,
@@ -68,11 +68,11 @@ function ErrorHandler(err, req, res, next) {
     if (err) {
         if (typeof err === 'number')
             err = new ServerError(err);
-        if (err.name == "ServerError")
+        if (err.name == 'ServerError')
             return res.status(err.http_code).json(err.toJSON());
         else {
             log.error(err.stack);
-            return res.status(500).json({err: {num: "500", msg: "Unknown error: " + err.message}})
+            return res.status(500).json({err: {num: '500', msg: 'Unknown error: ' + err.message}})
         }
     } else
         next();

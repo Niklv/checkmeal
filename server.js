@@ -48,38 +48,38 @@ app.get('/', function (req, res) {
 });
 app.use(require('./controllers/error').PageNotFound);
 app.use(require('./controllers/error').ErrorHandler);
-log.info("Server config complete!");
+log.info('Server config complete!');
 
 var httpsServer = https.createServer({
-    cert: fs.readFileSync(nconf.get("security:server:cert"), 'utf8'),
-    key: fs.readFileSync(nconf.get("security:server:key"), 'utf8')
-}, app).listen(nconf.get("https_port"), function () {
-    log.info("HTTPS Express server listening on port " + nconf.get("https_port"));
+    cert: fs.readFileSync(nconf.get('security:server:cert'), 'utf8'),
+    key: fs.readFileSync(nconf.get('security:server:key'), 'utf8')
+}, app).listen(nconf.get('https_port'), function () {
+    log.info('HTTPS Express server listening on port', nconf.get('https_port'));
 });
 
 process.on('SIGINT', function () {
-    log.info("Caught interrupt signal");
+    log.info('Caught interrupt signal');
     shutdown();
-
 });
 
 process.on('message', function (msg) {
     if (msg == 'shutdown') {
-        log.info("Shutdown signal");
+        log.info('Shutdown signal');
         shutdown();
     }
 });
 
 function shutdown() {
     async.series([
+        function (done) {
+            log.info('Stop server');
+            httpsServer.close();
+            done();
+        },
         kue.shutdown,
         db.disconnect
     ], function (err) {
-        log.info("Exit process");
+        log.info('Exit process');
         process.exit(0);
     });
-
-
-
-
 }
