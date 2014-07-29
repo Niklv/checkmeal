@@ -20,7 +20,7 @@ jobs.process('recognize', function (job, done, ctx) {
 
     setTimeout(function () {
         //done(new Error('WOAH'), 'RESULT FUCK YEAH');
-        done(null, {result: 'can it be json?'});
+        done(new Error("JOB ERRROR!!!!!"), {result: 'can it be json?'});
     }, 5000);
 
 });
@@ -42,7 +42,7 @@ function onJobEnd(jobInCacheId) {
             function findJobInDb(jobInCache, done) {
                 if (!jobInCache.data || !jobInCache.data.mongo_id)
                     return done(new Error('No mongo_id in jobInCache.data jobInCacheId=' + jobInCacheId));
-                JobInfo.findOne(jobInCache.data.mongo_id, function (err, jobInDb) {
+                JobInfo.findOne({_id: jobInCache.data.mongo_id}, function (err, jobInDb) {
                     if (err)
                         done(err);
                     else if (!jobInDb)
@@ -60,9 +60,8 @@ function onJobEnd(jobInCacheId) {
                         encoding: jobInDb.encoding,
                         extension: jobInDb.extension
                     };
-                //TODO: may be lot of bugs cause not proper file name
                 fs.exists(imageFilePath, function (exists) {
-                    if (exists)
+                    if (!exists)
                         GridFs.upload(imageFilePath, mimetype, metadata, function (err, fileGridFsId) {
                             //if err don't delete file
                             if (err)
@@ -77,15 +76,24 @@ function onJobEnd(jobInCacheId) {
                             done(null, jobInCache, jobInDb, err ? null : fileGridFsId);
                         });
                     else {
-                        log.error("IMAGE FILE NOT EXIST");
-                        log.error(imageFilePath);
+                        jobInCache.debug('DEBUG_INFO_START');
+                        jobInCache.debug('jobInDb : ', jobInDb.toString());
+                        jobInCache.debug('jobInCache.id : ' + jobInCache.id);
+                        jobInCache.debug('jobInCacheId : ' + jobInCacheId);
+                        jobInCache.debug('jobInCache : ' + JSON.stringify(jobInCache.data));
+                        jobInCache.debug('imageFilePath : ' + imageFilePath);
+                        jobInCache.debug('imageFilePath : ' + jobInDb.name);
+                        jobInCache.debug('DEBUG_INFO_END');
+                        log.error("IMAGE FILE NOT EXIST! " + imageFilePath);
                         done(null, jobInCache, jobInDb, null);
                     }
                 });
-
-
             },
-            function saveJobDataFromCacheToDb(jobInCache, jobInDb, fileGridFsId, done) {
+            function getCacheJobLogs(jobInCache, jobInDb, fileGridFsId, done) {
+                //kue.Jobs.logs();
+                done(null, jobInCache, jobInDb, fileGridFsId);
+            },
+            function saveJobDataFromCacheToDb(jobInCache, jobInDb, fileGridFsId, jobInCacheLog, done) {
                 jobInDb.file = fileGridFsId;
                 jobInDb.status = jobInCache._state;
                 jobInDb.rawJob = {
@@ -100,7 +108,8 @@ function onJobEnd(jobInCacheId) {
                     failed_at: jobInCache.failed_at,
                     duration: jobInCache.duration,
                     error: jobInCache._error,
-                    result: jobInCache.result
+                    result: jobInCache.result,
+                    log: jobInCacheLog
                 };
                 jobInDb.save(function (err, jobInfo) {
                     done(err, jobInfo);
@@ -132,9 +141,9 @@ function startRecognizeJob(fileInfo, cb) {
         return cb(new Error('No file provided'), null);
     var job = new RecognizeJob(fileInfo).save(function (err) {
         if (err)
-            job.log('Error saving to redis', err.stack);
+            job.log('Error saving to redis ' + err.stack);
         else
-            job.log('Saved To Redis');
+            job.debug('saved to redis');
         cb(err);
     });
 }

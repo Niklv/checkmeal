@@ -4,8 +4,6 @@ var path = require('path');
 var async = require('async');
 var nconf = require('nconf');
 var multer = require('multer');
-var mongoose = require('mongoose');
-var Grid = require('gridfs-stream');
 var ServerError = require('./error').ServerError;
 var log = require('./log')(module);
 var startRecognizeJob = require('./recognize_kue').startRecognizeJob;
@@ -15,10 +13,10 @@ module.exports.upload = multer({
     dest: nconf.get('upload_dir'),
     limits: nconf.get('file_limits'),
     onFileUploadStart: function (file) {
-        log.debug(file.fieldname + ' is starting ...')
+        log.debug('Start  upload ' + file.name);
     },
     onFileUploadComplete: function (file) {
-        log.debug(file.fieldname + ' uploaded to  ' + file.path)
+        log.debug('Finish upload ' + file.name);
     },
     onError: function (error, next) {
         log.error(error);

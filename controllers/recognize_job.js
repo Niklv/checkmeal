@@ -11,11 +11,19 @@ Job.prototype.log = function () {
     log.info.apply(this, args);
     Job.prototype.old_log.apply(this, args);
 };
+Job.prototype.debug = function () {
+    var args = arguments;
+    args[0] = '[Job' + this.id + '] ' + args[0];
+    log.debug.apply(this, args);
+    Job.prototype.old_log.apply(this, args);
+};
+
+
 
 Job.prototype.old_state = Job.prototype.state;
 Job.prototype.state = function () {
     var self = this, args = arguments;
-    self.log(args[0]);
+    self.debug(args[0]);
     JobInfo.findByIdAndUpdate(this.data.mongo_id, {$set: {'rawJob.status': args[0]}}, function (err) {
         if (err)
             self.log('Error update state in mongo', err.stack);
