@@ -3,7 +3,7 @@ var nconf = require('nconf');
 var express = require('express');
 var file = require('../controllers/file');
 var log = require('../controllers/log')(module);
-var recognize = require('../controllers/recognize');
+var recognize = require('../controllers/recognize_process');
 
 
 var api = express.Router();

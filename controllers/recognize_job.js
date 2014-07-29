@@ -4,6 +4,26 @@ var JobInfo = require('./../models').JobInfo;
 var log = require('./log')(module);
 var util = require('util');
 
+Job.prototype.old_log = Job.prototype.log;
+Job.prototype.log = function () {
+    var args = arguments;
+    args[0] = '[Job' + this.id + '] ' + args[0];
+    log.info.apply(this, args);
+    Job.prototype.old_log.apply(this, args);
+};
+
+Job.prototype.old_state = Job.prototype.state;
+Job.prototype.state = function () {
+    var self = this, args = arguments;
+    self.log(args[0]);
+    JobInfo.findByIdAndUpdate(this.data.mongo_id, {$set: {'rawJob.status': args[0]}}, function (err) {
+        if (err)
+            self.log('Error update state in mongo', err.stack);
+        Job.prototype.old_state.apply(self, args);
+    });
+};
+
+
 /**
  * @constructor
  */
@@ -14,23 +34,5 @@ function RecognizeJob(fileInfo) {
     });
 }
 util.inherits(RecognizeJob, Job);
-
-RecognizeJob.prototype.log = function () {
-    log.info('log called');
-    log.info.apply(this, _.union(['[Job' + this.id + ']'], arguments));
-    RecognizeJob.super_.prototype.log.apply(this, arguments);
-};
-
-RecognizeJob.prototype.state = function () {
-    var self = this;
-    self.log('new state =', arguments[0]);
-    self.log('mongo_id =', this.data.mongo_id);
-    JobInfo.findByIdAndUpdate(this.data.mongo_id, {$set: {state: arguments[0]}}, function (err) {
-        if (err)
-            self.log('Error update state in mongo', err.stack);
-    });
-    RecognizeJob.super_.prototype.state.apply(self, arguments);
-};
-
 
 module.exports = RecognizeJob;

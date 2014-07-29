@@ -4,6 +4,10 @@ var Schema = mongoose.Schema;
 
 //TODO: add Error!
 var jobInfo = new Schema({
+    file: {
+        type: Schema.Types.ObjectId,
+        ref: 'fs.files'
+    },
     originalname: {
         type: String,
         require: true,
@@ -45,7 +49,7 @@ var jobInfo = new Schema({
         type: Date,
         default: Date.now
     },
-    state: String,
+    status: String,
     rawJob: Object
 });
 

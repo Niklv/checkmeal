@@ -1,7 +1,5 @@
 var mongoose = require('mongoose');
 var nconf = require('nconf');
-var Grid = require('gridfs-stream');
-Grid.mongo = mongoose.mongo;
 var log = require('./log')(module);
 
 module.exports.connect = function () {

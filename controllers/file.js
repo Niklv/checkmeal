@@ -51,7 +51,12 @@ module.exports.process = function (req, res, next) {
         else if (file.truncated)
             fileErrors.push({file: file.originalname, msg: 'File is too big or error while saving.'});
         else {
-            validFiles.push(_.chain(file).omit(['fieldname', 'path']).extend({creator: null, createdAt: currentDate}).valueOf());
+            validFiles.push(
+                _.chain(file)
+                    .omit(['fieldname', 'path'])
+                    .extend({creator: null, createdAt: currentDate})
+                    .valueOf()
+            );
         }
     });
 
@@ -82,63 +87,6 @@ function startKueJobs(jobInfos) {
     async.map(jobInfos, startRecognizeJob, function (err, data) {
         if (err)
             log.error(err.stack);
-/*        if (_.isArray(data))
-            res.json({status: 'Ok!', tickets: data}); //end
-        else
-            next(0);*/
-    });
-}
-
-function writeFilesToGridFs(files, cb) {
-    async.map(files, writeFileToGridFs, cb);
-}
-
-function writeFileToGridFs(file, cb) {
-    var gfs = Grid(mongoose.connection.db);
-    var writestream = gfs.createWriteStream({
-        content_type: file.mimetype,
-        mode: 'w',
-        filename: file.name,
-        metadata: {
-            originalname: file.originalname,
-            encoding: file.encoding,
-            extension: file.extension,
-            creator: null
-        }
-    }), fp = path.resolve(nconf.get('NODE_DIR') + '/' + nconf.get('upload_dir') + '/' + file.name);
-
-    fs.createReadStream(fp).pipe(writestream);
-
-    writestream
-        .on('close', function (grid_file) {
-            cb(null, grid_file);
-        })
-        .on('error', function (err) {
-            err.file = file;
-            cb(err, null);
-        });
-}
-
-function deleteFilesFromGridFs(files, cb) {
-    async.filter(files, deleteFileGridFs, function (errors) {
-        cb && cb(errors.length ? errors : null);
-    });
-}
-
-function deleteFileGridFs(file, cb) {
-    log.debug('Delete from gridfs', file._id);
-    var gfs = Grid(mongoose.connection.db);
-    gfs.remove({_id: file._id}, function (err) {
-        if (err) {
-            log.error('Error deleting file!');
-            log.error(err.stack);
-            log.error('Problem file:');
-            log.error(file);
-            cb && cb(null, {file: file, err: err});
-        } else {
-            log.debug('success delete from gridfs', file._id);
-            cb && cb();
-        }
     });
 }
 

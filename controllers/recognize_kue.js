@@ -1,66 +1,130 @@
 var _ = require('lodash');
+var fs = require('fs');
 var kue = require('kue');
-var Job = kue.Job;
+var path = require('path');
+var nconf = require('nconf');
+var async = require('async');
+var log = require('./log')(module);
 var JobInfo = require('./../models').JobInfo;
 var RecognizeJob = require('./recognize_job');
-var nconf = require('nconf');
-var log = require('./log')(module);
+var GridFs = require('./gridfs');
+
 var app = kue.app;
-
-
 var jobs = kue.createQueue({
     db: nconf.get('redis:db')
 });
 
 jobs.process('recognize', function (job, done, ctx) {
-    //TODO: save image
-    /*JobInfo.update({_id: job.data.mongo_id}, {state: 'active'}, function (err, data) {
-        //TODO: handle ERROR!
-        job.log('Started');
-        job.log('Start reco process');
-        done(null, 'RESULT FUCK YEAH');
-    });*/
-    job.log('PROCESS STATE=', job.state);
-    done(null, 'RESULT FUCK YEAH');
+    //TODO: start processing
+
+
+    setTimeout(function () {
+        //done(new Error('WOAH'), 'RESULT FUCK YEAH');
+        done(null, {result: 'can it be json?'});
+    }, 5000);
 
 });
 
-jobs.on('job complete', function (id, result) {
-    Job.get(id, function (err, job) {
-        if (err) {
-            log.error(err.stack);
-            return;
-        }
-        job.log('Done, Result:', result);
-        //TODO: get log and save to mongo!
-        /*JobInfo.update({_id: job.data.mongo_id}, {state: 'complete'}, function (err, data) {
-         //TODO: handle ERROR!
-         job.remove(function (err) {
-         if (err) throw err;
-         job.log('Removed');
-         });
-         });*/
+jobs.on('job complete', onJobEnd).on('job failed', onJobEnd);
 
-    });
-}).on('job failed', function (id, data) {
-    Job.get(id, function (err, job) {
-        if (err) {
-            log.error(err.stack);
-            return;
+function onJobEnd(jobInCacheId) {
+    async.waterfall([
+            function findJobInCache(done) {
+                kue.Job.get(jobInCacheId, function (err, jobInCache) {
+                    if (err)
+                        done(err);
+                    else if (!jobInCache)
+                        done(new Error('JobInCache with id=' + jobInCacheId + ' not found'));
+                    else
+                        done(null, jobInCache)
+                });
+            },
+            function findJobInDb(jobInCache, done) {
+                if (!jobInCache.data || !jobInCache.data.mongo_id)
+                    return done(new Error('No mongo_id in jobInCache.data jobInCacheId=' + jobInCacheId));
+                JobInfo.findOne(jobInCache.data.mongo_id, function (err, jobInDb) {
+                    if (err)
+                        done(err);
+                    else if (!jobInDb)
+                        done(new Error('JobInDb with id=' + jobInCache.data.mongo_id + ' not found'));
+                    else
+                        done(null, jobInCache, jobInDb);
+                });
+            },
+            function uploadImageToGridFs(jobInCache, jobInDb, done) {
+                var imageFilePath = path.resolve(nconf.get('NODE_DIR') + '/' + nconf.get('upload_dir') + '/' + jobInDb.name),
+                    mimetype = jobInDb.mimetype,
+                    metadata = {
+                        originalname: jobInDb.originalname,
+                        name: jobInDb.name,
+                        encoding: jobInDb.encoding,
+                        extension: jobInDb.extension
+                    };
+                //TODO: may be lot of bugs cause not proper file name
+                fs.exists(imageFilePath, function (exists) {
+                    if (exists)
+                        GridFs.upload(imageFilePath, mimetype, metadata, function (err, fileGridFsId) {
+                            //if err don't delete file
+                            if (err)
+                                log.error(err);
+                            else
+                                fs.unlink(imageFilePath, function (err) {
+                                    if (err)
+                                        log.error('[Job' + jobInCacheId + '] Error while removing file(' + imageFilePath + '): ' + err.stack);
+                                    else
+                                        log.debug('[Job' + jobInCacheId + '] image file delete success');
+                                });
+                            done(null, jobInCache, jobInDb, err ? null : fileGridFsId);
+                        });
+                    else {
+                        log.error("IMAGE FILE NOT EXIST");
+                        log.error(imageFilePath);
+                        done(null, jobInCache, jobInDb, null);
+                    }
+                });
+
+
+            },
+            function saveJobDataFromCacheToDb(jobInCache, jobInDb, fileGridFsId, done) {
+                jobInDb.file = fileGridFsId;
+                jobInDb.status = jobInCache._state;
+                jobInDb.rawJob = {
+                    id: jobInCache.id,
+                    priority: jobInCache._priority,
+                    delay: jobInCache._delay,
+                    attempts: jobInCache._attempts,
+                    max_attempts: jobInCache._max_attempts,
+                    state: jobInCache._state,
+                    created_at: jobInCache.created_at,
+                    updated_at: jobInCache.updated_at,
+                    failed_at: jobInCache.failed_at,
+                    duration: jobInCache.duration,
+                    error: jobInCache._error,
+                    result: jobInCache.result
+                };
+                jobInDb.save(function (err, jobInfo) {
+                    done(err, jobInfo);
+                    // if err don't delete job in cache
+                    if (!err)
+                        jobInCache.remove(function (err) {
+                            if (err)
+                                log.error('[Job' + jobInCacheId + '] Error while removing job: ' + err.stack);
+                            else
+                                log.debug('[Job' + jobInCacheId + '] job removed');
+                        });
+                });
+            },
+            function notificateUser(jobInfo, done) {
+                //TODO: send notification to user
+                done();
+            }
+        ],
+        function (err, data) {
+            if (err)
+                log.error(err.stack);
         }
-        job.log('FAILED');
-        job.log('Data:', data);
-        log.error(data);
-        //TODO: add Error! get log and save to mongo!
-        /*JobInfo.update({_id: job.data.mongo_id}, {state: 'failed'}, function (err, data) {
-         //TODO: handle ERROR!
-         job.remove(function (err) {
-         if (err) throw err;
-         job.log('Removed');
-         });
-         });*/
-    });
-});
+    );
+}
 
 
 function startRecognizeJob(fileInfo, cb) {
@@ -73,10 +137,10 @@ function startRecognizeJob(fileInfo, cb) {
             job.log('Saved To Redis');
         cb(err);
     });
-
 }
 
-function shutdown(cb) {
+
+function shutdownKue(cb) {
     log.info('Stop jobs');
     jobs.shutdown(function (err) {
         log.info('Kue is shut down.', err || '');
@@ -88,4 +152,4 @@ function shutdown(cb) {
 module.exports.jobs = jobs;
 module.exports.app = app;
 module.exports.startRecognizeJob = startRecognizeJob;
-module.exports.shutdown = shutdown;
+module.exports.shutdown = shutdownKue;
