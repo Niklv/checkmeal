@@ -46,17 +46,8 @@ var jobInfo = new Schema({
         default: Date.now
     },
     state: String,
-    startedAt: Date,
-    completedAt: Date,
-    error: Object,
-    log: Object
+    rawJob: Object
 });
-
-
-jobInfo.methods.failed = function () {
-    this.state = "failed";
-};
-
 
 module.exports = mongoose.model('job_info', jobInfo);
 
