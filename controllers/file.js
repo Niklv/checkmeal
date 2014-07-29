@@ -12,8 +12,8 @@ var startRecognizeJob = require('./recognize_kue').startRecognizeJob;
 var JobInfo = require('./../models').JobInfo;
 
 module.exports.upload = multer({
-    dest: nconf.get("upload_dir"),
-    limits: nconf.get("file_limits"),
+    dest: nconf.get('upload_dir'),
+    limits: nconf.get('file_limits'),
     onFileUploadStart: function (file) {
         log.debug(file.fieldname + ' is starting ...')
     },
@@ -36,47 +36,58 @@ module.exports.upload = multer({
 });
 
 module.exports.process = function (req, res, next) {
-    var incoming_files, good_files = [], errors = [], curDate = new Date();
     if (!req.files)
         return next(1001);
+    var uploadedFiles = _.isArray(req.files.files) ? req.files.files : [req.files.files],
+        validFiles = [], fileErrors = [], currentDate = new Date();
 
-    incoming_files = _.isArray(req.files.files) ? req.files.files : [req.files.files];
-    log.debug(incoming_files);
-
-    incoming_files.forEach(function (file) {
+    log.debug(uploadedFiles);
+    //filter files for mime type
+    uploadedFiles.forEach(function (file) {
         if (!file) {
-        } else if (!file.mimetype || file.mimetype.split('/')[0] != "image")
-            errors.push({file: file.originalname, msg: "Not an image"});
+            //TODO: ???????
+        } else if (!file.mimetype || file.mimetype.split('/')[0] != 'image')
+            fileErrors.push({file: file.originalname, msg: 'Not an image'});
         else if (file.truncated)
-            errors.push({file: file.originalname, msg: "File is too big or error while saving."});
+            fileErrors.push({file: file.originalname, msg: 'File is too big or error while saving.'});
         else {
-            good_files.push(_.chain(file).omit(['fieldname', 'path']).extend({creator: null, createdAt: curDate}).valueOf());
+            validFiles.push(_.chain(file).omit(['fieldname', 'path']).extend({creator: null, createdAt: currentDate}).valueOf());
         }
     });
 
-    if (errors.length) {
-        next(new ServerError(1002, {data: errors}));
-        return deleteFilesFromFs(incoming_files);
+    if (fileErrors.length) {
+        next(new ServerError(1002, {data: fileErrors}));
+        return deleteFilesFromFs(uploadedFiles);
     }
 
-    if (!good_files.length) {
+    if (!validFiles.length) {
         next(1003);
-        return deleteFilesFromFs(incoming_files);
+        return deleteFilesFromFs(uploadedFiles);
     }
 
-    JobInfo.create(good_files, function (err, savedToMongo) {
-        async.map(savedToMongo, startRecognizeJob, function (err, data) {
-            if (err)
-                log.error(err.stack);
-            if (_.isArray(data))
-                res.json({status: "Ok!", tickets: data}); //end
-            else
-                next(0);
-        });
+    JobInfo.create(validFiles, function (err) {
+        if (err) {
+            log.error(err.stack);
+            return next(new ServerError(1005, {data: err.stack}));
+        }
+        var jobInfos = _.rest(arguments);
+        res.json({status: 'Ok!', tickets: _.map(jobInfos, '_id')}); //send _ids to client
+        setImmediate(startKueJobs, jobInfos);
     });
 
 
 };
+
+function startKueJobs(jobInfos) {
+    async.map(jobInfos, startRecognizeJob, function (err, data) {
+        if (err)
+            log.error(err.stack);
+/*        if (_.isArray(data))
+            res.json({status: 'Ok!', tickets: data}); //end
+        else
+            next(0);*/
+    });
+}
 
 function writeFilesToGridFs(files, cb) {
     async.map(files, writeFileToGridFs, cb);
@@ -86,7 +97,7 @@ function writeFileToGridFs(file, cb) {
     var gfs = Grid(mongoose.connection.db);
     var writestream = gfs.createWriteStream({
         content_type: file.mimetype,
-        mode: "w",
+        mode: 'w',
         filename: file.name,
         metadata: {
             originalname: file.originalname,
@@ -94,7 +105,7 @@ function writeFileToGridFs(file, cb) {
             extension: file.extension,
             creator: null
         }
-    }), fp = path.resolve(nconf.get("NODE_DIR") + "/" + nconf.get("upload_dir") + "/" + file.name);
+    }), fp = path.resolve(nconf.get('NODE_DIR') + '/' + nconf.get('upload_dir') + '/' + file.name);
 
     fs.createReadStream(fp).pipe(writestream);
 
@@ -115,17 +126,17 @@ function deleteFilesFromGridFs(files, cb) {
 }
 
 function deleteFileGridFs(file, cb) {
-    log.debug("Delete from gridfs", file._id);
+    log.debug('Delete from gridfs', file._id);
     var gfs = Grid(mongoose.connection.db);
     gfs.remove({_id: file._id}, function (err) {
         if (err) {
-            log.error("Error deleting file!");
+            log.error('Error deleting file!');
             log.error(err.stack);
-            log.error("Problem file:");
+            log.error('Problem file:');
             log.error(file);
             cb && cb(null, {file: file, err: err});
         } else {
-            log.debug("success delete from gridfs", file._id);
+            log.debug('success delete from gridfs', file._id);
             cb && cb();
         }
     });
@@ -138,16 +149,16 @@ function deleteFilesFromFs(files, cb) {
 }
 
 function deleteFileFs(file, cb) {
-    log.debug("Delete from fs", file.name);
-    fs.unlink(path.resolve(nconf.get("NODE_DIR") + "/" + nconf.get("upload_dir") + "/" + file.name), function (err) {
+    log.debug('Delete from fs', file.name);
+    fs.unlink(path.resolve(nconf.get('NODE_DIR') + '/' + nconf.get('upload_dir') + '/' + file.name), function (err) {
         if (err) {
-            log.error("Error deleting file!");
+            log.error('Error deleting file!');
             log.error(err.stack);
-            log.error("Problem file:");
+            log.error('Problem file:');
             log.error(file);
             cb && cb(null, {file: file, err: err});
         } else {
-            log.debug("success delete from fs", file.name);
+            log.debug('success delete from fs', file.name);
             cb && cb();
         }
     });

@@ -18,5 +18,9 @@
     "1004": {
         "msg": "Error saving file to db",
         "http": 500
+    },
+    "1005": {
+        "msg": "Db connection error",
+        "http": 500
     }
 }
