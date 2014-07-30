@@ -52,7 +52,7 @@ module.exports.process = function (req, res, next) {
             validFiles.push(
                 _.chain(file)
                     .omit(['fieldname', 'path'])
-                    .extend({creator: null, createdAt: currentDate})
+                    .extend({creator: null, createdAt: currentDate, status: "queued"})
                     .valueOf()
             );
         }
@@ -69,10 +69,8 @@ module.exports.process = function (req, res, next) {
     }
 
     JobInfo.create(validFiles, function (err) {
-        if (err) {
-            log.error(err.stack);
-            return next(new ServerError(1005, {data: err.stack}));
-        }
+        if (err)
+            return next(err);
         var jobInfos = _.rest(arguments);
         res.json({status: 'Ok!', tickets: _.map(jobInfos, '_id')}); //send _ids to client
         setImmediate(startKueJobs, jobInfos);

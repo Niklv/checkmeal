@@ -66,8 +66,14 @@ function PageNotFound(req, res, next) {
 
 function ErrorHandler(err, req, res, next) {
     if (err) {
-        if (typeof err === 'number')
+        if (typeof err === 'Error')
+            log.error(err.stack);
+
+        if (typeof err === 'MongoError')
+            err = new ServerError(901);
+        else if (typeof err === 'number')
             err = new ServerError(err);
+
         if (err.name == 'ServerError')
             return res.status(err.http_code).json(err.toJSON());
         else {

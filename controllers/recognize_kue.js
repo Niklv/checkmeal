@@ -14,6 +14,11 @@ var jobs = kue.createQueue({
     db: nconf.get('redis:db')
 });
 
+jobs.on('error', function (err) {
+    //log.error(err);
+    //TODO: try reconnect
+});
+
 jobs.process('recognize', function (job, done, ctx) {
     //TODO: start processing
     //log.info(ctx);
@@ -21,17 +26,19 @@ jobs.process('recognize', function (job, done, ctx) {
      log.info('shutdown signal');
      }, 5000);*/
     log.info('START PROCESSING');
-    setTimeout(function () {
-        log.info('END PROCESSING');
-        done(null, {result: 'can it be json?'});
-    }, 3000);
-
+    JobInfo.findOneAndUpdate({_id: job.data.mongo_id}, {$set: {status: "active"}}, function (err) {
+        if (err)
+            log.error(err);
+        setTimeout(function () {
+            log.info('END PROCESSING');
+            done(null, {will_be: 'in json format'});
+        }, 5000);
+    });
 });
 
 jobs.on('job complete', onJobEnd).on('job failed', onJobEnd);
 
 function onJobEnd(jobInCacheId) {
-    log.warn("JOB_____________________________________END!");
     async.auto({
         jobInCache: function findJobInCache(done) {
             kue.Job.get(jobInCacheId, function (err, jobInCache) {
@@ -154,14 +161,22 @@ function startRecognizeJob(fileInfo, cb) {
 function restartFailedAtShutdownJobs() {
     log.info("Restart failed at shutdown jobs");
     jobs.failed(function (err, data) {
+        if (err) {
+            log.error("Error find failed job");
+            log.error(err.stack);
+            return;
+        }
         async.map(data, function (id, done) {
             kue.Job.get(id, done);
-        }, function cb(err, data) {
-            console.log("failed");
-            console.log(err);
+        }, function (err, data) {
+            if (err) {
+                log.error("Error find failed job");
+                log.error(err.stack);
+                return;
+            }
             data.forEach(function (item) {
                 /*if(item._error == "Shutdown")
-                    item.promote();*/
+                 item.promote();*/
             });
         });
 

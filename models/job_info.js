@@ -1,8 +1,6 @@
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 
-
-//TODO: add Error!
 var jobInfo = new Schema({
     file: {
         type: Schema.Types.ObjectId,
@@ -49,8 +47,12 @@ var jobInfo = new Schema({
         type: Date,
         default: Date.now
     },
-    status: String,
-    rawJob: Object
+    status: {
+        type: String
+    },
+    rawJob: {
+        type: Object
+    }
 });
 
 module.exports = mongoose.model('job_info', jobInfo);

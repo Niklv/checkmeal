@@ -3,6 +3,10 @@
         "msg": "Unknown Error",
         "http": 500
     },
+    "901": {
+        "msg": "Db connection error",
+        "http": 500
+    },
     "1001": {
         "msg": "No files provided",
         "http": 400
@@ -19,8 +23,12 @@
         "msg": "Error saving file to db",
         "http": 500
     },
-    "1005": {
-        "msg": "Db connection error",
-        "http": 500
+    "1101": {
+        "msg": "Wrong job id",
+        "http": 400
+    },
+    "1102": {
+        "msg": "Job not found",
+        "http": 404
     }
 }
