@@ -9,10 +9,12 @@ var JobInfo = require('./../models').JobInfo;
 var RecognizeJob = require('./recognize_job');
 var GridFs = require('./gridfs');
 
-var app = kue.app;
+
 var jobs = kue.createQueue({
-    db: nconf.get('redis:db')
-});
+        redis: nconf.get('redis')
+    }),
+    app = kue.app;
+log.info(nconf.get('redis'));
 
 jobs.on('error', function (err) {
     //log.error(err);

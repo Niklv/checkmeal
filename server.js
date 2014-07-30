@@ -1,7 +1,10 @@
 //Config
 var nconf = require('nconf');
 nconf.use('memory').argv().env();
-if (nconf.get('NODE_ENV') != 'production') nconf.set('NODE_ENV', 'development');
+if (nconf.get('NODE_ENV') != 'production') {
+    nconf.set('NODE_ENV', 'development');
+    nconf.add('env_config', {type: 'file', file: './config/development.json'});
+}
 nconf.add('defaults', {type: 'file', file: './config/default.json'});
 nconf.set('NODE_DIR', __dirname);
 
@@ -15,7 +18,7 @@ var https = require('https');
 var bodyParser = require('body-parser');
 var methodOverride = require('method-override');
 var compression = require('compression');
-var models = require('./models');
+//var models = require('./models');
 var api = require('./routers/api');
 var log = require('./controllers/log')(module);
 var db = require('./controllers/db');
