@@ -4,17 +4,17 @@ var kue = require('kue');
 var path = require('path');
 var nconf = require('nconf');
 var async = require('async');
-var log = require('./log')(module);
+var GridFs = require('./gridfs');
 var JobInfo = require('./../models').JobInfo;
 var RecognizeJob = require('./recognize_job');
-var GridFs = require('./gridfs');
+var RecognizeProcess = require('./recognize_process');
+var log = require('./log')(module);
 
 
 var jobs = kue.createQueue({
-        redis: nconf.get('redis')
-    }),
-    app = kue.app;
-log.info(nconf.get('redis'));
+    prefix: nconf.get('isWin') ? 'q_dev' : 'q',
+    redis: nconf.get('redis')
+});
 
 jobs.on('error', function (err) {
     //log.error(err);
@@ -22,25 +22,38 @@ jobs.on('error', function (err) {
 });
 
 jobs.process('recognize', function (job, done, ctx) {
-    //TODO: start processing
-    //log.info(ctx);
-    /*ctx.shutdown(function (err) {
-     log.info('shutdown signal');
-     }, 5000);*/
-    log.info('START PROCESSING');
     JobInfo.findOneAndUpdate({_id: job.data.mongo_id}, {$set: {status: "active"}}, function (err) {
         if (err)
             log.error(err);
-        setTimeout(function () {
+        log.info('START PROCESSING');
+        var recognizeProcess = new RecognizeProcess(job.data.filename);
+        recognizeProcess.on('error', function (err) {
+            log.error('ERROR');
             log.info('END PROCESSING');
-            done(null, {will_be: 'in json format'});
-        }, 5000);
+            done(err);
+        });
+        recognizeProcess.on('done', function (result) {
+            log.info('DONE!');
+            log.info('END PROCESSING');
+            done(null, result);
+        });
+        recognizeProcess.start();
+        /*ctx.pause(function (err) {
+         log.info('PAUSE?');
+         recognizeProcess.kill();
+         }, 5000);*/
+
+        /*setTimeout(function () {
+         log.info('END PROCESSING');
+         done(null, {will_be: 'in json format'});
+         }, 5000);*/
     });
 });
 
 jobs.on('job complete', onJobEnd).on('job failed', onJobEnd);
 
 function onJobEnd(jobInCacheId) {
+    log.info('ON JOB END');
     async.auto({
         jobInCache: function findJobInCache(done) {
             kue.Job.get(jobInCacheId, function (err, jobInCache) {
@@ -144,6 +157,7 @@ function onJobEnd(jobInCacheId) {
     }, function (err, data) {
         if (err)
             log.error(err.stack);
+        log.info("End job process finished!");
     })
 }
 
@@ -190,14 +204,14 @@ function restartFailedAtShutdownJobs() {
 function shutdownKue(cb) {
     log.info('Stop jobs');
     jobs.shutdown(function (err) {
-        log.info('Kue is shut down.', err || '');
+        log.info('Kue is shut down.', err || ''); //TODO: MOVE JOB END TO JOB, PROPER HANDLE ERROR, PREPARE TO RESTART JOB
         cb && cb();
-    }, 1000);
+    }, 5000);
 
 }
 
 module.exports.jobs = jobs;
-module.exports.app = app;
+module.exports.app = kue.app;
 module.exports.startRecognizeJob = startRecognizeJob;
 module.exports.restartFailedAtShutdownJobs = restartFailedAtShutdownJobs;
 module.exports.shutdown = shutdownKue;
